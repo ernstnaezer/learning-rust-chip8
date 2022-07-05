@@ -1,13 +1,22 @@
 use std::io::Cursor;
 
-const CHIP8_REG_VX :usize = 16;
+const CHIP8_REG_V :usize = 16;
 const CHIP8_RAM :usize = 4096;
+pub const CHIP8_WIDTH: usize = 64;
+pub const CHIP8_HEIGHT: usize = 32;
+
+pub struct OutputState<'a> {
+    pub vram: &'a[[u8; CHIP8_WIDTH]; CHIP8_HEIGHT],
+    pub vram_changed: bool
+}
 
 pub struct Processor {
     ram: [u8; CHIP8_RAM],
-    reg_vx:[u8; CHIP8_REG_VX],
-    reg_i:u16,
-    reg_pc:u16
+    vram: [[u8; CHIP8_WIDTH]; CHIP8_HEIGHT],
+    vram_changed: bool,
+    reg_v:[u8; CHIP8_REG_V],
+    reg_i:usize,
+    reg_pc:usize
 }
 
 impl Processor {
@@ -15,11 +24,17 @@ impl Processor {
     pub fn new() -> Self {
 
         Processor {
-            reg_vx: [0; CHIP8_REG_VX],
+            reg_v: [0; CHIP8_REG_V],
             ram: [0; CHIP8_RAM],
+            vram: [[0; CHIP8_WIDTH]; CHIP8_HEIGHT],
             reg_pc: 0x200,
-            reg_i: 0
+            reg_i: 0,
+            vram_changed: false
         }
+    }
+
+    pub fn reset_pc(&mut self) {
+        self.reg_pc = 0x200;
     }
 
     pub fn load(&mut self, data: &[u8]) {
@@ -33,15 +48,22 @@ impl Processor {
         }
     }
 
-    pub fn run_one_instruction(&mut self) {
+    pub fn tick(&mut self) -> OutputState {
         
+        self.vram_changed = false;
+
         let opcode = self.read_opcode();
         self.run_opcode(opcode);
 
         self.reg_pc+=2;
+
+        OutputState {
+            vram: &self.vram,
+            vram_changed: self.vram_changed
+        }
     }
 
-    fn read_opcode(&mut self) -> u16 {
+    fn read_opcode(&self) -> u16 {
 
         use std::io::SeekFrom;
         use std::io::Seek;
@@ -50,8 +72,6 @@ impl Processor {
         let mut rdr = Cursor::new(self.ram);
         rdr.seek(SeekFrom::Start(self.reg_pc as u64)).unwrap();
         rdr.read_u16::<BigEndian>().unwrap()
-
-        //(self.ram[self.reg_pc] as u16) << 8 | (self.ram[self.reg_pc + 1] as u16)
     }
 
     fn run_opcode(&mut self, opcode:u16) {
@@ -66,30 +86,54 @@ impl Processor {
 
         let kk = (opcode & 0x00FF) as u8;
         let x = hex_digits.1 as usize;
-        let nnn = (opcode & 0x0FFF) as u16;
+        let y = hex_digits.2 as usize;
+        let n = hex_digits.3 as usize;
+        let addr = (opcode & 0x0FFF) as usize;
 
         match hex_digits {
             (0x06, _, _, _) => self.op_6xkk(x, kk),
-            (0x0a, _, _, _) => self.op_annn(nnn),
+            (0x0a, _, _, _) => self.op_annn(addr),
+            (0x0d, _, _, _) => self.op_dxyn(x,y,n),
 
             _ => panic!("unexpected opcode {:#4X}", opcode)
         }
     }
 
-    fn set_vx(&mut self, x:usize, kk:u8) {
-        // Vf should not be set, the register is used as flag by some instructions
-        if x < 15 {
-            self.reg_vx[x] = kk;
-        }
-    }
-
+    /*
+     * Set Vx = kk
+     */
     fn op_6xkk(&mut self, x:usize, kk:u8) {
-        println!("LD V{:x}, {:#X}", x, kk);
-        self.set_vx(x, kk);
+        println!("LD V{:x}, {}", x, kk);
+        self.reg_v[x] = kk;
     }
 
-    fn op_annn(&mut self, nnn:u16) {
-        println!("LD I, {:#X}", nnn);
-        self.reg_i = nnn;
+    /*
+     * Set I = addr
+     */
+    fn op_annn(&mut self, addr:usize) {
+        println!("LD I, {}", addr);
+        self.reg_i = addr;
+    }
+
+    /*
+     * DRW Vx, Vy, nibble
+     * Display n-byte sprite starting at memory location I at (Vx, Vy)
+     */
+    fn op_dxyn(&mut self, vx:usize, vy:usize, n:usize) {
+
+        self.reg_v[0xf] = 0;
+
+        for byte in 0..n {
+            let y = (self.reg_v[vy] as usize + byte) % CHIP8_HEIGHT;
+            for bit in 0..8 {
+                let x = (self.reg_v[vx] as usize + bit) % CHIP8_WIDTH;
+
+                let color = (self.ram[self.reg_i + byte] >> (7 - bit)) & 1;
+                self.reg_v[0xf] |= color & self.vram[y][x];
+                self.vram[y][x] ^= color;
+            }
+        }
+
+        self.vram_changed = true;
     }
 }
