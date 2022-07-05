@@ -1,9 +1,15 @@
 use std::io::Cursor;
 
 const CHIP8_REG_V :usize = 16;
+const CHIP8_STACK :usize = 16;
 const CHIP8_RAM :usize = 4096;
 pub const CHIP8_WIDTH: usize = 64;
 pub const CHIP8_HEIGHT: usize = 32;
+
+enum OpcodeResult {
+    Next,
+    Call
+}
 
 pub struct OutputState<'a> {
     pub vram: &'a[[u8; CHIP8_WIDTH]; CHIP8_HEIGHT],
@@ -15,26 +21,33 @@ pub struct Processor {
     vram: [[u8; CHIP8_WIDTH]; CHIP8_HEIGHT],
     vram_changed: bool,
     reg_v:[u8; CHIP8_REG_V],
+    stack: :[u8; CHIP8_STACK]
     reg_i:usize,
-    reg_pc:usize
+    reg_pc:usize,
+    reg_sp:usize,
 }
 
 impl Processor {
 
     pub fn new() -> Self {
 
-        Processor {
-            reg_v: [0; CHIP8_REG_V],
+        Processor {            
             ram: [0; CHIP8_RAM],
             vram: [[0; CHIP8_WIDTH]; CHIP8_HEIGHT],
-            reg_pc: 0x200,
-            reg_i: 0,
             vram_changed: false
+
+            reg_v: [0; CHIP8_REG_V],
+            reg_pc: 0x200,
+            reg_sp: 0xff,
+            reg_i: 0,
+            stack: [0; CHIP8_STACK],
+            
         }
     }
 
     pub fn reset_pc(&mut self) {
         self.reg_pc = 0x200;
+        self.reg_sp = 0xff;
     }
 
     pub fn load(&mut self, data: &[u8]) {
@@ -53,10 +66,13 @@ impl Processor {
         self.vram_changed = false;
 
         let opcode = self.read_opcode();
-        self.run_opcode(opcode);
+        let r = self.run_opcode(opcode);
 
-        self.reg_pc+=2;
-
+        r match {
+            Next => self.reg_pc+=2,
+            _ =>
+        }
+       
         OutputState {
             vram: &self.vram,
             vram_changed: self.vram_changed
@@ -74,7 +90,7 @@ impl Processor {
         rdr.read_u16::<BigEndian>().unwrap()
     }
 
-    fn run_opcode(&mut self, opcode:u16) {
+    fn run_opcode(&mut self, opcode:u16) -> OpcodeResult {
 
         // unpack the opcode into 4 bit hex digits (nibbles)
         let hex_digits = (
@@ -92,6 +108,7 @@ impl Processor {
 
         match hex_digits {
             (0x06, _, _, _) => self.op_6xkk(x, kk),
+            (0x02, _, _, _) => self.op_2nnn(addr),
             (0x0a, _, _, _) => self.op_annn(addr),
             (0x0d, _, _, _) => self.op_dxyn(x,y,n),
 
@@ -113,6 +130,15 @@ impl Processor {
     fn op_annn(&mut self, addr:usize) {
         println!("LD I, {}", addr);
         self.reg_i = addr;
+    }
+
+    /*
+     * Call addr
+     */
+    fn op_2nnn(&mut self, addr:usize) {
+        self.reg_sp++;
+        self.stack[self.reg_sp] = self.reg_pc;
+        self.reg_pc = addr;
     }
 
     /*
