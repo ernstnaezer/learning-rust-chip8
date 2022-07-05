@@ -37,7 +37,7 @@ fn main() {
             }
 
             processor.reset_pc();
-            for _ in 0..12 {
+            for _ in 0..13 {
                 let state = processor.tick();
                 if state.vram_changed {
                     display.draw(&state.vram);
