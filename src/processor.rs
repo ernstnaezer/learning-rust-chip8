@@ -213,6 +213,10 @@ impl Processor {
         ProgramCounter::Next
     }
      
+    /*
+     * ADD Vx, byte
+     * Set Vx = Vx + kk.
+     */
     fn op_7xkk(&mut self, vx:usize, kk:u8) -> ProgramCounter {
         self.reg_v[vx] += kk;
         ProgramCounter::Next
