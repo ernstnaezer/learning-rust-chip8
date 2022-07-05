@@ -120,6 +120,7 @@ impl Processor {
             (0x0f, _, 0x06, 0x05) => self.op_fx65(vx),
             (0x0f, _, 0x02, 0x09) => self.op_fx29(vx),
             (0x07, _, _, _) => self.op_7xkk(vx, kk),
+            (0x00, 0x00, 0x0e, 0x0e) => self.op_00ee(),
 
             _ => panic!("unexpected opcode {:#4X}", opcode)
         };
@@ -151,6 +152,18 @@ impl Processor {
     fn op_2nnn(&mut self, addr:usize) -> ProgramCounter {
         self.stack[self.reg_sp] = self.reg_pc + CHIP8_OPCODE_SIZE;
         self.reg_sp += 1;
+        ProgramCounter::Jump(addr)
+    }
+    
+    /*
+     * RET
+     * Return from a subroutine.
+     */
+     fn op_00ee(&mut self) -> ProgramCounter {
+        self.reg_sp -= 1;
+        let addr = self.stack[self.reg_sp] as usize;
+        self.stack[self.reg_sp] = 0;
+
         ProgramCounter::Jump(addr)
     }
 
@@ -221,6 +234,8 @@ impl Processor {
         self.reg_v[vx] += kk;
         ProgramCounter::Next
     }
+
+
 }
 
 #[cfg(test)]
@@ -327,5 +342,15 @@ mod test {
         p.op_7xkk(3, 15);
 
         assert_eq!(p.reg_v[3], 20);
+    }
+
+    #[test]
+    fn op_00ee() {
+        let mut p = Processor::new();
+        p.op_2nnn(0x100);
+        let pc = p.op_00ee();
+
+        assert!(matches!(pc, ProgramCounter::Jump(0x202)));
+        assert_eq!(p.reg_sp, 0);
     }
 }
