@@ -1,5 +1,6 @@
 mod drivers;
 mod processor;
+mod font;
 
 use std::thread;
 use std::time::Duration;
@@ -37,7 +38,7 @@ fn main() {
             }
 
             processor.reset_pc();
-            for _ in 0..13 {
+            for _ in 0..15 {
                 let state = processor.tick();
                 if state.vram_changed {
                     display.draw(&state.vram);

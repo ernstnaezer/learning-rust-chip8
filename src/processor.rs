@@ -1,11 +1,11 @@
-use std::io::Cursor;
-
 const CHIP8_OPCODE_SIZE :usize = 2;
 const CHIP8_REG_V :usize = 16;
 const CHIP8_STACK :usize = 16;
 const CHIP8_RAM :usize = 4096;
 pub const CHIP8_WIDTH: usize = 64;
 pub const CHIP8_HEIGHT: usize = 32;
+
+use crate::font::FONT_SET;
 
 enum ProgramCounter {
     Next,
@@ -32,8 +32,13 @@ impl Processor {
 
     pub fn new() -> Self {
 
+        let mut ram = [0; CHIP8_RAM];
+        for (i, &byte) in FONT_SET.iter().enumerate() {
+            ram[i] = byte;
+        }
+
         Processor {            
-            ram: [0; CHIP8_RAM],
+            ram: ram,
             vram: [[0; CHIP8_WIDTH]; CHIP8_HEIGHT],
             vram_changed: false,
             reg_v: [0; CHIP8_REG_V],
@@ -80,6 +85,7 @@ impl Processor {
 
     fn read_opcode(&self) -> u16 {
 
+        use std::io::Cursor;
         use std::io::SeekFrom;
         use std::io::Seek;
         use byteorder::{BigEndian, ReadBytesExt};
@@ -112,6 +118,7 @@ impl Processor {
             (0x0d, _, _, _) => self.op_dxyn(vx, vy, n),
             (0x0f, _, 0x03, 0x03) => self.op_fx33(vx),
             (0x0f, _, 0x06, 0x05) => self.op_fx65(vx),
+            (0x0f, _, 0x02, 0x09) => self.op_fx29(vx),
 
             _ => panic!("unexpected opcode {:#4X}", opcode)
         };
@@ -195,6 +202,16 @@ impl Processor {
 
         ProgramCounter::Next
     }
+
+    /*
+     * LD F, Vx
+     * Set I = location of sprite for digit Vx.
+     */
+    fn op_fx29(&mut self, vx:usize) -> ProgramCounter {
+        self.reg_i = (self.reg_v[vx] * 5).into();
+        ProgramCounter::Next
+    }
+     
 }
 
 #[cfg(test)]
@@ -207,6 +224,7 @@ mod test {
         let p = Processor::new();
         
         assert_eq!(p.reg_pc, 0x200);
+        assert_eq!(p.ram[0..80], FONT_SET);
         assert_eq!(p.vram_changed, false);
     }
 
@@ -282,5 +300,14 @@ mod test {
         p.op_fx65(0xf);
 
         assert_eq!(p.reg_v, [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]);
+    }
+
+    #[test]
+    fn op_fx29() {
+        let mut p = Processor::new();
+        p.reg_v[3] = 5;
+        p.fx29(3);
+
+        assert_eq!(p.reg_i, 25);
     }
 }
