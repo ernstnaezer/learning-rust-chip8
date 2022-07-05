@@ -119,6 +119,7 @@ impl Processor {
             (0x0f, _, 0x03, 0x03) => self.op_fx33(vx),
             (0x0f, _, 0x06, 0x05) => self.op_fx65(vx),
             (0x0f, _, 0x02, 0x09) => self.op_fx29(vx),
+            (0x07, _, _, _) => self.op_7xkk(vx, kk),
 
             _ => panic!("unexpected opcode {:#4X}", opcode)
         };
@@ -212,6 +213,10 @@ impl Processor {
         ProgramCounter::Next
     }
      
+    fn op_7xkk(&mut self, vx:usize, kk:u8) -> ProgramCounter {
+        self.reg_v[vx] += kk;
+        ProgramCounter::Next
+    }
 }
 
 #[cfg(test)]
@@ -306,8 +311,17 @@ mod test {
     fn op_fx29() {
         let mut p = Processor::new();
         p.reg_v[3] = 5;
-        p.fx29(3);
+        p.op_fx29(3);
 
         assert_eq!(p.reg_i, 25);
+    }
+    
+    #[test]
+    fn op_7xkk() {
+        let mut p = Processor::new();
+        p.reg_v[3] = 5;
+        p.op_7xkk(3, 15);
+
+        assert_eq!(p.reg_v[3], 20);
     }
 }
