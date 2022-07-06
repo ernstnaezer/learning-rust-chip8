@@ -153,7 +153,7 @@ impl Processor {
             (0x0d, _, _, _) => self.op_dxyn(vx, vy, n),
             (0x0e, _, 0x0a, 0x01) => self.op_exa1(vx),
             (0x0c, _, _, _) => self.op_cxkk(vx, kk),
-            (0x0f, _, 0x01, 0x05) => self.op_fn15(vx),
+            (0x0f, _, 0x01, 0x05) => self.op_fx15(vx),
             (0x0f, _, 0x02, 0x09) => self.op_fx29(vx),
             (0x0f, _, 0x03, 0x03) => self.op_fx33(vx),
             (0x0f, _, 0x06, 0x05) => self.op_fx65(vx),
@@ -298,7 +298,7 @@ impl Processor {
      * LD DT, Vx
      * Set delay timer = Vx.
      */
-    fn op_fn15(&mut self, vx: usize) -> ProgramCounter {
+    fn op_fx15(&mut self, vx: usize) -> ProgramCounter {
         self.reg_dt = self.reg_v[vx];
         ProgramCounter::Next
     }
@@ -573,10 +573,10 @@ mod test {
     }
 
     #[test]
-    fn op_fn15() {
+    fn op_fx15() {
         let mut p = Processor::new();
         p.reg_v[0x1] = 15;
-        p.op_fn15(0x1);
+        p.op_fx15(0x1);
 
         assert_eq!(p.reg_dt, 15);
     }
