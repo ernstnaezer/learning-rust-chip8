@@ -5,6 +5,7 @@ mod font;
 use std::thread;
 use std::time::Duration;
 use std::env;
+use std::time::Instant;
 
 use drivers::{DisplayDriver, CartridgeDriver};
 use processor::Processor;
@@ -26,7 +27,10 @@ fn main() {
     use sdl2::event::Event;
     use sdl2::keyboard::Keycode;
 
+    let mut start = Instant::now();
+
     'running: loop {
+
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. }
@@ -38,12 +42,17 @@ fn main() {
             }
         }
 
+        let delta = start.elapsed();
+        println!("{:?}", delta);
+
            // processor.reset_pc();
 //            for _ in 0..24 {
-        let state = processor.tick();
+        let state = processor.tick(delta);
         if state.vram_changed {
             display.draw(&state.vram);
         }
+
+        start = Instant::now();
 //            }
         thread::sleep(sleep_duration);
     }

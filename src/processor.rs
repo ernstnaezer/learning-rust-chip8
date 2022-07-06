@@ -1,11 +1,12 @@
+use crate::font::FONT_SET;
+use std::time::Duration;
+
 const CHIP8_OPCODE_SIZE :usize = 2;
 const CHIP8_REG_V :usize = 16;
 const CHIP8_STACK :usize = 16;
 const CHIP8_RAM :usize = 4096;
 pub const CHIP8_WIDTH: usize = 64;
 pub const CHIP8_HEIGHT: usize = 32;
-
-use crate::font::FONT_SET;
 
 enum ProgramCounter {
     Next,
@@ -25,7 +26,9 @@ pub struct Processor {
     stack:  [usize; CHIP8_STACK],
     reg_i:  usize,
     reg_pc: usize,
-    reg_sp: usize
+    reg_sp: usize,
+    reg_dt: usize,
+    timer_cycle: Duration,
 }
 
 impl Processor {
@@ -37,7 +40,7 @@ impl Processor {
             ram[i] = byte;
         }
 
-        Processor {            
+        Processor {
             ram: ram,
             vram: [[0; CHIP8_WIDTH]; CHIP8_HEIGHT],
             vram_changed: false,
@@ -46,6 +49,8 @@ impl Processor {
             reg_sp: 0,
             reg_i: 0,
             stack: [0; CHIP8_STACK],
+            reg_dt: 0,
+            timer_cycle: Duration::ZERO,
         }
     }
 
@@ -65,8 +70,10 @@ impl Processor {
         }
     }
 
-    pub fn tick(&mut self) -> OutputState {
+    pub fn tick(&mut self, delta: Duration) -> OutputState {
         
+        self.update_delay_timer(delta);
+
         self.vram_changed = false;
 
         let opcode = self.read_opcode();
@@ -80,6 +87,16 @@ impl Processor {
         OutputState {
             vram: &self.vram,
             vram_changed: self.vram_changed
+        }
+    }
+
+    fn update_delay_timer(&mut self, delta: Duration) {
+
+        let chip8_timer_period :Duration = Duration::from_secs_f32(1.0/60.0);
+        self.timer_cycle += delta;
+
+        if self.reg_dt > 0 && self.timer_cycle >= chip8_timer_period {
+            self.reg_dt -= 1;
         }
     }
 
@@ -122,9 +139,10 @@ impl Processor {
             (0x07, _, _, _) => self.op_7xkk(vx, kk),
             (0x0a, _, _, _) => self.op_annn(addr),
             (0x0d, _, _, _) => self.op_dxyn(vx, vy, n),
+            (0x0f, _, 0x01, 0x05) => self.op_fn15(vx),
+            (0x0f, _, 0x02, 0x09) => self.op_fx29(vx),
             (0x0f, _, 0x03, 0x03) => self.op_fx33(vx),
             (0x0f, _, 0x06, 0x05) => self.op_fx65(vx),
-            (0x0f, _, 0x02, 0x09) => self.op_fx29(vx),
 
             _ => panic!("unexpected opcode {:#4X}", opcode)
         };
@@ -261,6 +279,15 @@ impl Processor {
         ProgramCounter::Next
     }
 
+    /*
+     * LD DT, Vx
+     * Set delay timer = Vx.
+     */
+    fn op_fn15(&mut self, vx: usize) -> ProgramCounter {
+        self.reg_dt = self.reg_v[vx].into();
+        ProgramCounter::Next
+    }
+
 }
 
 #[cfg(test)]
@@ -297,7 +324,7 @@ mod test {
     }
 
     #[test]
-    fn op_annn(){
+    fn op_annn() {
         let mut p = Processor::new();
         p.op_annn(0x123);
         
@@ -305,7 +332,7 @@ mod test {
     }
     
     #[test]
-    fn op_2nnn(){
+    fn op_2nnn() {
         let mut p = Processor::new();
         let pc = p.op_2nnn(0x123);
         
@@ -315,7 +342,7 @@ mod test {
     }
 
     #[test]
-    fn op_dxyn(){
+    fn op_dxyn() {
         let mut p = Processor::new();
         let data = [0b10101010];
         p.load(&data);
@@ -390,9 +417,31 @@ mod test {
     }
 
     #[test]
-    fn op_1nnn(){
+    fn op_1nnn() {
         let mut p = Processor::new();
         let pc = p.op_1nnn(0x123);
         assert!(matches!(pc, ProgramCounter::Jump(0x123)));
+    }
+
+    #[test]
+    fn op_fn15() {
+        let mut p = Processor::new();
+        p.reg_v[0x1] = 15;
+        p.op_fn15(0x1);
+
+        assert_eq!(p.reg_dt, 15);
+    }
+
+    #[test]
+    fn delay_timer() {
+        let mut p = Processor::new();
+        
+        p.reg_dt = 100;
+        for i in 0..60 {
+            p.update_delay_timer(Duration::from_secs_f32(1.0/60.0));
+        }
+
+        assert_eq!(p.timer_cycle.as_secs(), Duration::from_secs(1).as_secs());
+        assert_eq!(p.reg_dt, 40);
     }
 }
