@@ -29,6 +29,7 @@ pub struct Processor {
     reg_pc: usize,
     reg_sp: usize,
     reg_dt: u8,
+    reg_st: u8,
     timer_cycle: Duration,
     keypad: [bool; 16]
 }
@@ -52,6 +53,7 @@ impl Processor {
             reg_i: 0,
             stack: [0; CHIP8_STACK],
             reg_dt: 0,
+            reg_st: 0,
             timer_cycle: Duration::ZERO,
             keypad: [false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false]
         }
@@ -77,7 +79,7 @@ impl Processor {
         
         self.keypad = keypad;
         self.vram_changed = false;
-        self.update_delay_timer(delta);
+        self.update_timers(delta);
 
         let opcode: u16 = self.read_opcode();
         let pc: ProgramCounter = self.run_opcode(opcode);
@@ -94,13 +96,19 @@ impl Processor {
         }
     }
 
-    fn update_delay_timer(&mut self, delta: Duration) {
+    fn update_timers(&mut self, delta: Duration) {
 
         let chip8_timer_period :Duration = Duration::from_secs_f32(1.0/60.0);
         self.timer_cycle += delta;
 
-        if self.reg_dt > 0 && self.timer_cycle >= chip8_timer_period {
-            self.reg_dt -= 1;
+        if self.timer_cycle >= chip8_timer_period {
+            if self.reg_dt > 0 {
+                self.reg_dt -= 1;
+            }
+
+            if self.reg_st > 0 {
+                self.reg_st -= 1;
+            } 
         }
     }
 
@@ -154,6 +162,7 @@ impl Processor {
             (0x0e, _, 0x0a, 0x01) => self.op_exa1(vx),
             (0x0c, _, _, _) => self.op_cxkk(vx, kk),
             (0x0f, _, 0x01, 0x05) => self.op_fx15(vx),
+            (0x0f, _, 0x01, 0x08) => self.op_fx18(vx),
             (0x0f, _, 0x02, 0x09) => self.op_fx29(vx),
             (0x0f, _, 0x03, 0x03) => self.op_fx33(vx),
             (0x0f, _, 0x06, 0x05) => self.op_fx65(vx),
@@ -300,6 +309,15 @@ impl Processor {
      */
     fn op_fx15(&mut self, vx: usize) -> ProgramCounter {
         self.reg_dt = self.reg_v[vx];
+        ProgramCounter::Next
+    }
+
+    /*
+     * LD ST, Vx
+     * Set sound timer = Vx.
+     */
+    fn op_fx18(&mut self, vx: usize) -> ProgramCounter {
+        self.reg_st = self.reg_v[vx];
         ProgramCounter::Next
     }
 
@@ -590,16 +608,18 @@ mod test {
     }
 
     #[test]
-    fn delay_timer() {
+    fn delay_timers() {
         let mut p = Processor::new();
         
         p.reg_dt = 100;
+        p.reg_st = 200;
         for _ in 0..60 {
-            p.update_delay_timer(Duration::from_secs_f32(1.0/60.0));
+            p.update_timers(Duration::from_secs_f32(1.0/60.0));
         }
 
         assert_eq!(p.timer_cycle.as_secs(), Duration::from_secs(1).as_secs());
         assert_eq!(p.reg_dt, 40);
+        assert_eq!(p.reg_st, 140);
     }
 
     #[test]
