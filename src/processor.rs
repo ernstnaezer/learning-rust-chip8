@@ -143,6 +143,7 @@ impl Processor {
             (0x04, _, _, _) => self.op_4xkk(vx, kk),
             (0x06, _, _, _) => self.op_6xkk(vx, kk),
             (0x07, _, _, _) => self.op_7xkk(vx, kk),
+            (0x08, _, _, 0x00) => self.op_8xy0(vx, vy),
             (0x08, _, _, 0x02) => self.op_8xy2(vx, vy),
             (0x08, _, _, 0x0e) => self.op_8xye(vx, vy),
             (0x08, _, _, 0x04) => self.op_8xy4(vx, vy),
@@ -392,6 +393,15 @@ impl Processor {
      */
     fn op_8xy2(&mut self, vx:usize, vy:usize) -> ProgramCounter {
         self.reg_v[vx] &= self.reg_v[vy]; 
+        ProgramCounter::Next
+    }
+
+    /*
+     * LD Vx, Vy
+     * Set Vx = Vy.
+     */
+    fn op_8xy0(&mut self, vx:usize, vy:usize) -> ProgramCounter {
+        self.reg_v[vx] = self.reg_v[vy]; 
         ProgramCounter::Next
     }
 
@@ -703,4 +713,15 @@ mod test {
         assert_eq!(p.reg_v[0x0], 0);
         assert_eq!(p.reg_v[0xf], 1);
     }
+
+    #[test]
+    fn op_8xy0(){
+        let mut p = Processor::new();
+
+        p.reg_v[0x1] = 10;
+        p.op_8xy0(0x0, 0x1);
+        
+        assert_eq!(p.reg_v[0x0], 10 );
+    }
+
 }
