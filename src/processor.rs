@@ -147,6 +147,7 @@ impl Processor {
             (0x08, _, _, 0x02) => self.op_8xy2(vx, vy),
             (0x08, _, _, 0x0e) => self.op_8xye(vx, vy),
             (0x08, _, _, 0x04) => self.op_8xy4(vx, vy),
+            (0x08, _, _, 0x05) => self.op_8xy5(vx, vy),
             (0x08, _, _, 0x06) => self.op_8xy6(vx, vy),
             (0x0a, _, _, _) => self.op_annn(addr),
             (0x0d, _, _, _) => self.op_dxyn(vx, vy, n),
@@ -418,6 +419,20 @@ impl Processor {
         self.reg_v[0xf] = if r > 0xff { 1 } else { 0 };
         self.reg_v[vx] = (r & 0xff) as u8; 
 
+        ProgramCounter::Next
+    }
+
+    /*
+     * SUB Vx, Vy
+     * Set Vx = Vx - Vy, set VF = NOT borrow.
+     */
+    fn op_8xy5(&mut self, vx:usize, vy:usize) -> ProgramCounter {
+
+        let x = self.reg_v[vx];
+        let y = self.reg_v[vy];
+
+        self.reg_v[0xf] = if x > y { 1 } else { 0 };
+        self.reg_v[vx] = x.wrapping_sub(y);
         ProgramCounter::Next
     }
 
@@ -710,8 +725,27 @@ mod test {
         p.reg_v[0x1] = 1;
         p.op_8xy4(0x0, 0x1);
         
-        assert_eq!(p.reg_v[0x0], 0);
         assert_eq!(p.reg_v[0xf], 1);
+        assert_eq!(p.reg_v[0x0], 0);
+    }
+
+    #[test]
+    fn op_8xy5(){
+        let mut p = Processor::new();
+
+        p.reg_v[0x0] = 20;
+        p.reg_v[0x1] = 10;
+        p.op_8xy5(0x0, 0x1);
+        
+        assert_eq!(p.reg_v[0xf], 0);
+        assert_eq!(p.reg_v[0x0], 10);
+
+        p.reg_v[0x0] = 10;
+        p.reg_v[0x1] = 20;
+        p.op_8xy5(0x0, 0x1);
+        
+        assert_eq!(p.reg_v[0xf], 1);
+        assert_eq!(p.reg_v[0x0], 0);
     }
 
     #[test]
