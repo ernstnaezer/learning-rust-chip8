@@ -142,6 +142,8 @@ impl Processor {
             (0x03, _, _, _) => self.op_3xkk(vx, kk),
             (0x06, _, _, _) => self.op_6xkk(vx, kk),
             (0x07, _, _, _) => self.op_7xkk(vx, kk),
+            (0x08, _, _, 0x0e) => self.op_8xye(vx, vy),
+            (0x08, _, _, 0x06) => self.op_8xy6(vx, vy),
             (0x0a, _, _, _) => self.op_annn(addr),
             (0x0d, _, _, _) => self.op_dxyn(vx, vy, n),
             (0x0e, _, 0x0a, 0x01) => self.op_exa1(vx),
@@ -337,6 +339,37 @@ impl Processor {
             ProgramCounter::Next
         }
     }
+
+    /*
+     *  SHL Vx {, Vy}
+     *  Set Vx = Vx << 1 or Vy if > 0.
+     */
+    fn op_8xye(&mut self, vx:usize, vy:usize) -> ProgramCounter {
+
+        self.reg_v[0xf] = (self.reg_v[vx] & 0b1000_0000) >> 7; 
+        if vx == vy {
+            self.reg_v[vx] = self.reg_v[vx] << 1
+        } else {
+            self.reg_v[vx] = self.reg_v[vx] << self.reg_v[vy]
+        }
+
+        ProgramCounter::Next
+    }
+
+    /*
+     *  SHR Vx {, Vy}
+     *  Set Vx = Vx >> 1 or Vy if > 0.
+    */
+    fn op_8xy6(&mut self, vx:usize, vy:usize) -> ProgramCounter {
+        self.reg_v[0xf] = self.reg_v[vx] & 0b0000_0001; 
+        if vx == vy {
+            self.reg_v[vx] = self.reg_v[vx] >> 1
+        } else {
+            self.reg_v[vx] = self.reg_v[vx] >> self.reg_v[vy]
+        }
+
+        ProgramCounter::Next
+    }
 }
 
 #[cfg(test)]
@@ -531,6 +564,57 @@ mod test {
 
         assert!(matches!(pc1, ProgramCounter::Next));
         assert!(matches!(pc2, ProgramCounter::Skip));
+    }
 
+    #[test]
+    fn op_8xye(){
+        let mut p = Processor::new();
+
+        p.reg_v[0] = 0b0000_0001;
+        p.reg_v[1] = 4;
+        p.op_8xye(0, 1);
+        assert_eq!(p.reg_v[0], 0b0001_0000);
+
+        p.reg_v[1] = 0b0000_0001;
+        p.op_8xye(1, 1);
+        assert_eq!(p.reg_v[1], 0b0000_0010);
+
+        p.reg_v[0] = 0b0000_0001;
+        p.op_8xye(0, 0);
+        assert_eq!(p.reg_v[0], 0b0000_0010);
+
+        p.reg_v[0] = 0b0000_0001;
+        p.op_8xye(0, 0);
+        assert_eq!(p.reg_v[0xf], 0);
+
+        p.reg_v[0] = 0b1000_0000;
+        p.op_8xye(0, 0);
+        assert_eq!(p.reg_v[0xf], 1);
+    }
+
+    #[test]
+    fn op_8xy6(){
+        let mut p = Processor::new();
+
+        p.reg_v[0] = 0b1000_0000;
+        p.reg_v[1] = 4;
+        p.op_8xy6(0, 1);
+        assert_eq!(p.reg_v[0], 0b0000_1000);
+
+        p.reg_v[1] = 0b1000_0000;
+        p.op_8xy6(1, 1);
+        assert_eq!(p.reg_v[1], 0b0100_0000);
+
+        p.reg_v[0] = 0b1000_0000;
+        p.op_8xy6(0, 0);
+        assert_eq!(p.reg_v[0], 0b0100_0000);
+
+        p.reg_v[0] = 0b1000_0000;
+        p.op_8xy6(0, 0);
+        assert_eq!(p.reg_v[0xf], 0);
+
+        p.reg_v[0] = 0b0000_0001;
+        p.op_8xy6(0, 0);
+        assert_eq!(p.reg_v[0xf], 1);
     }
 }
