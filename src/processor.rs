@@ -163,6 +163,7 @@ impl Processor {
             (0x0c, _, _, _) => self.op_cxkk(vx, kk),
             (0x0f, _, 0x01, 0x05) => self.op_fx15(vx),
             (0x0f, _, 0x01, 0x08) => self.op_fx18(vx),
+            (0x0f, _, 0x01, 0x0E) => self.op_fx1e(vx),
             (0x0f, _, 0x02, 0x09) => self.op_fx29(vx),
             (0x0f, _, 0x03, 0x03) => self.op_fx33(vx),
             (0x0f, _, 0x06, 0x05) => self.op_fx65(vx),
@@ -226,9 +227,9 @@ impl Processor {
         self.reg_v[0xf] = 0;
 
         for byte in 0..n {
-            let y : usize = ((self.reg_v[vy] + byte)).into();
+            let y : usize = ((self.reg_v[vy].wrapping_add(byte))).into();
             for bit in 0..8 {
-                let x : usize = ((self.reg_v[vx] + bit)).into();
+                let x : usize = ((self.reg_v[vx].wrapping_add(bit))).into();
 
                 if x < CHIP8_WIDTH && y < CHIP8_HEIGHT {
                     let color = (self.ram[self.reg_i + byte as usize] >> (7 - bit)) & 1;
@@ -324,6 +325,21 @@ impl Processor {
     }
 
     /*
+     * ADD I, Vx
+     * Set I = I + Vx.
+     */
+    fn op_fx1e(&mut self, vx: usize) -> ProgramCounter {
+        
+        let x = self.reg_v[vx] as u32;
+        let i = self.reg_i as u32;
+        let r = i + x;
+
+        self.reg_i = r as usize;
+
+        ProgramCounter::Next
+    }
+
+    /*
      * LD Vx, DT
      * Set Vx = delay timer value.
      */
@@ -371,6 +387,18 @@ impl Processor {
      */
     fn op_exa1(&mut self, vx:usize) -> ProgramCounter {
         if self.keypad[self.reg_v[vx] as usize] == false {
+            ProgramCounter::Skip
+        } else {
+            ProgramCounter::Next
+        }
+    }    
+    
+    /*
+     * SKP Vx
+     * Skip next instruction if key with the value of Vx is pressed.
+     */
+    fn op_ex9e(&mut self, vx:usize) -> ProgramCounter {
+        if self.keypad[self.reg_v[vx] as usize] == true {
             ProgramCounter::Skip
         } else {
             ProgramCounter::Next
@@ -675,6 +703,23 @@ mod test {
     }
 
     #[test]
+    fn op_ex9e() {
+        let mut p = Processor::new();
+        p.load(&[0x00, 0xe0]);
+
+        let keymap = [ true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false];
+        p.tick(Duration::ZERO, keymap);
+        p.reg_v[0x0] = 0;
+        p.reg_v[0x1] = 1;
+
+        let pc1 = p.op_ex9e(0x0);
+        let pc2 = p.op_ex9e(0x1);
+
+        assert!(matches!(pc1, ProgramCounter::Skip));
+        assert!(matches!(pc2, ProgramCounter::Next));
+    }
+
+    #[test]
     fn op_8xye(){
         let mut p = Processor::new();
 
@@ -782,7 +827,18 @@ mod test {
         p.reg_v[0x1] = 10;
         p.op_8xy0(0x0, 0x1);
         
-        assert_eq!(p.reg_v[0x0], 10 );
+        assert_eq!(p.reg_v[0x0], 10);
+    }
+
+    #[test]
+    fn op_fx1e(){
+        let mut p = Processor::new();
+
+        p.reg_v[0] = 10;
+        p.reg_i = 10;
+        p.op_fx1e(0x0);
+        
+        assert_eq!(p.reg_i, 20);
     }
 
 }
