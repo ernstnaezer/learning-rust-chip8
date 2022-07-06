@@ -36,17 +36,16 @@ fn main() {
                 } => break 'running,
                 _ => {}
             }
-
-            processor.reset_pc();
-            for _ in 0..24 {
-                let state = processor.tick();
-                if state.vram_changed {
-                    display.draw(&state.vram);
-                }
-            }
-
-            thread::sleep(sleep_duration);
         }
+
+           // processor.reset_pc();
+//            for _ in 0..24 {
+        let state = processor.tick();
+        if state.vram_changed {
+            display.draw(&state.vram);
+        }
+//            }
+        thread::sleep(sleep_duration);
     }
     
 }

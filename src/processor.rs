@@ -74,7 +74,7 @@ impl Processor {
 
         match pc {
             ProgramCounter::Next => self.reg_pc += CHIP8_OPCODE_SIZE,
-            ProgramCounter::Jump(addr) => self.reg_pc = addr            
+            ProgramCounter::Jump(addr) => self.reg_pc = addr
         }
        
         OutputState {
@@ -111,23 +111,52 @@ impl Processor {
         let n = hex_digits.3 as u8;
         let addr = (opcode & 0x0FFF) as usize;
 
-        let r = match hex_digits {
-            (0x06, _, _, _) => self.op_6xkk(vx, kk),
+        //println!("pc: {:x}, {:x}", self.reg_pc, opcode);
+
+        return match hex_digits {
+            (0x00, 0x00, 0x0e, 0x0e) => self.op_00ee(),
+            (0x00, 0x00, 0x0e, 0x00) => self.op_00e0(),
+            (0x01, _, _, _) => self.op_1nnn(addr),
             (0x02, _, _, _) => self.op_2nnn(addr),
+            (0x06, _, _, _) => self.op_6xkk(vx, kk),
+            (0x07, _, _, _) => self.op_7xkk(vx, kk),
             (0x0a, _, _, _) => self.op_annn(addr),
             (0x0d, _, _, _) => self.op_dxyn(vx, vy, n),
             (0x0f, _, 0x03, 0x03) => self.op_fx33(vx),
             (0x0f, _, 0x06, 0x05) => self.op_fx65(vx),
             (0x0f, _, 0x02, 0x09) => self.op_fx29(vx),
-            (0x07, _, _, _) => self.op_7xkk(vx, kk),
-            (0x00, 0x00, 0x0e, 0x0e) => self.op_00ee(),
-            (0x00, 0x00, 0x0e, 0x00) => self.op_00e0(),
-            (0x01, _, _, _) => self.op_1nnn(addr),
 
             _ => panic!("unexpected opcode {:#4X}", opcode)
         };
+    }
 
-        r
+    /*
+     * JMP addr
+     * Set the PC to address
+     */
+     fn op_1nnn(&mut self, addr:usize) -> ProgramCounter {
+        ProgramCounter::Jump(addr)
+    }
+
+    /*
+     * Call addr
+     */
+     fn op_2nnn(&mut self, addr:usize) -> ProgramCounter {
+        self.stack[self.reg_sp] = self.reg_pc + CHIP8_OPCODE_SIZE;
+        self.reg_sp += 1;
+        ProgramCounter::Jump(addr)
+    }
+
+    /*
+     * RET
+     * Return from a subroutine.
+     */
+     fn op_00ee(&mut self) -> ProgramCounter {
+        self.reg_sp -= 1;
+        let addr = self.stack[self.reg_sp] as usize;
+        self.stack[self.reg_sp] = 0;
+
+        ProgramCounter::Jump(addr)
     }
 
     /*
@@ -144,27 +173,6 @@ impl Processor {
     fn op_annn(&mut self, addr:usize) -> ProgramCounter {
         self.reg_i = addr;
         ProgramCounter::Next
-    }
-
-    /*
-     * Call addr
-     */
-    fn op_2nnn(&mut self, addr:usize) -> ProgramCounter {
-        self.stack[self.reg_sp] = self.reg_pc + CHIP8_OPCODE_SIZE;
-        self.reg_sp += 1;
-        ProgramCounter::Jump(addr)
-    }
-    
-    /*
-     * RET
-     * Return from a subroutine.
-     */
-     fn op_00ee(&mut self) -> ProgramCounter {
-        self.reg_sp -= 1;
-        let addr = self.stack[self.reg_sp] as usize;
-        self.stack[self.reg_sp] = 0;
-
-        ProgramCounter::Jump(addr)
     }
 
     /*
@@ -248,11 +256,9 @@ impl Processor {
             }
         }
 
-        ProgramCounter::Next
-    }
+        self.vram_changed = true;
 
-    fn op_1nnn(&mut self, addr:usize) -> ProgramCounter {
-        ProgramCounter::Jump(addr)
+        ProgramCounter::Next
     }
 
 }
@@ -380,6 +386,7 @@ mod test {
         p.vram[1][1] = 1;
         p.op_00e0();
         assert_eq!(p.vram[1][1] ,0);
+        assert_eq!(p.vram_changed, true);
     }
 
     #[test]
