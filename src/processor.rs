@@ -27,7 +27,7 @@ pub struct Processor {
     reg_i:  usize,
     reg_pc: usize,
     reg_sp: usize,
-    reg_dt: usize,
+    reg_dt: u8,
     timer_cycle: Duration,
 }
 
@@ -135,14 +135,17 @@ impl Processor {
             (0x00, 0x00, 0x0e, 0x00) => self.op_00e0(),
             (0x01, _, _, _) => self.op_1nnn(addr),
             (0x02, _, _, _) => self.op_2nnn(addr),
+            (0x03, _, _, _) => self.op_3xkk(vx, kk),
             (0x06, _, _, _) => self.op_6xkk(vx, kk),
             (0x07, _, _, _) => self.op_7xkk(vx, kk),
             (0x0a, _, _, _) => self.op_annn(addr),
             (0x0d, _, _, _) => self.op_dxyn(vx, vy, n),
+            (0x0c, _, _, _) => self.op_cxkk(vx, kk),
             (0x0f, _, 0x01, 0x05) => self.op_fn15(vx),
             (0x0f, _, 0x02, 0x09) => self.op_fx29(vx),
             (0x0f, _, 0x03, 0x03) => self.op_fx33(vx),
             (0x0f, _, 0x06, 0x05) => self.op_fx65(vx),
+            (0x0f, _, 0x00, 0x07) => self.op_fx07(vx),
 
             _ => panic!("unexpected opcode {:#4X}", opcode)
         };
@@ -284,9 +287,40 @@ impl Processor {
      * Set delay timer = Vx.
      */
     fn op_fn15(&mut self, vx: usize) -> ProgramCounter {
-        self.reg_dt = self.reg_v[vx].into();
+        self.reg_dt = self.reg_v[vx];
         ProgramCounter::Next
     }
+
+    /*
+     * LD Vx, DT
+     * Set Vx = delay timer value.
+     */
+    fn op_fx07(&mut self, vx: usize) -> ProgramCounter {
+        self.reg_v[vx] = self.reg_dt;
+        ProgramCounter::Next
+    }
+
+    /*
+     * SE Vx, byte
+     * Skip next instruction if Vx = kk.
+     */
+    fn op_3xkk(&mut self, vx:usize, kk:u8) -> ProgramCounter {
+        if self.reg_v[vx] == kk {
+            ProgramCounter::Jump(self.reg_pc + CHIP8_OPCODE_SIZE * 2)
+        } else {
+            ProgramCounter::Next
+        }
+    }
+    
+    /*
+     * RND Vx, byte
+     * Set Vx = random byte AND kk.
+     */
+    fn op_cxkk(&mut self, vx:usize, kk:u8) -> ProgramCounter {
+        self.reg_v[vx] = rand::random::<u8>() & kk;
+        ProgramCounter::Next
+    }
+
 
 }
 
@@ -433,15 +467,37 @@ mod test {
     }
 
     #[test]
+    fn op_fx07() {
+        let mut p = Processor::new();
+        p.reg_dt = 15;
+        p.op_fx07(0x1);
+        assert_eq!(p.reg_v[0x1], 15);
+    }
+
+    #[test]
     fn delay_timer() {
         let mut p = Processor::new();
         
         p.reg_dt = 100;
-        for i in 0..60 {
+        for _ in 0..60 {
             p.update_delay_timer(Duration::from_secs_f32(1.0/60.0));
         }
 
         assert_eq!(p.timer_cycle.as_secs(), Duration::from_secs(1).as_secs());
         assert_eq!(p.reg_dt, 40);
+    }
+
+    #[test]
+    fn op_3xkk() {
+        let mut p = Processor::new();
+        p.reg_v[0x1] = 15;
+
+        let pc1 = p.op_3xkk(0x1, 10);
+        let pc2 = p.op_3xkk(0x1, 15);
+        let pc3 = p.op_3xkk(0x1, 20);
+
+        assert!(matches!(pc1, ProgramCounter::Next));
+        assert!(matches!(pc2, ProgramCounter::Jump(0x204)));
+        assert!(matches!(pc3, ProgramCounter::Next));
     }
 }
