@@ -41,7 +41,7 @@ fn main() -> ! {
         // }
 
         let delta = start.elapsed();
-        println!("{:?}", delta);
+//        println!("{:?}", delta);
 
            // processor.reset_pc();
 //            for _ in 0..24 {

@@ -29,6 +29,9 @@ impl InputDriver {
             if let Event::Quit { .. } = event {
                 return Err(());
             };
+            if let Event::KeyDown { keycode: Some(Keycode::Escape), .. } = event {
+                return Err(());
+            };
         }
 
         let keys: Vec<Keycode> = self.event_pump

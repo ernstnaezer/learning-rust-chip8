@@ -283,7 +283,9 @@ impl Processor {
      * Set Vx = Vx + kk.
      */
     fn op_7xkk(&mut self, vx:usize, kk:u8) -> ProgramCounter {
-        self.reg_v[vx] += kk;
+        let x = self.reg_v[vx] as u16;
+        let r = x + kk as u16; 
+        self.reg_v[vx] = r as u8;
         ProgramCounter::Next
     }
 
@@ -435,7 +437,7 @@ impl Processor {
         let r = x + y;
 
         self.reg_v[0xf] = if r > 0xff { 1 } else { 0 };
-        self.reg_v[vx] = (r & 0xff) as u8; 
+        self.reg_v[vx] = r as u8; 
 
         ProgramCounter::Next
     }
@@ -561,6 +563,11 @@ mod test {
         p.op_7xkk(3, 15);
 
         assert_eq!(p.reg_v[3], 20);
+
+        p.reg_v[3] = 0xff;
+        p.op_7xkk(3, 15);
+
+        assert_eq!(p.reg_v[3], 14);
     }
 
     #[test]
