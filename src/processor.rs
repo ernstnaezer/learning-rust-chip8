@@ -431,7 +431,7 @@ impl Processor {
         let x = self.reg_v[vx];
         let y = self.reg_v[vy];
 
-        self.reg_v[0xf] = if x > y { 1 } else { 0 };
+        self.reg_v[0xf] = if x > y { 0 } else { 1 };
         self.reg_v[vx] = x.wrapping_sub(y);
         ProgramCounter::Next
     }
@@ -745,7 +745,7 @@ mod test {
         p.op_8xy5(0x0, 0x1);
         
         assert_eq!(p.reg_v[0xf], 1);
-        assert_eq!(p.reg_v[0x0], 0);
+        assert_eq!(p.reg_v[0x0], 246);
     }
 
     #[test]
