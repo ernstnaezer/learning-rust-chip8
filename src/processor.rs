@@ -121,6 +121,7 @@ impl Processor {
             (0x0f, _, 0x02, 0x09) => self.op_fx29(vx),
             (0x07, _, _, _) => self.op_7xkk(vx, kk),
             (0x00, 0x00, 0x0e, 0x0e) => self.op_00ee(),
+            (0x00, 0x00, 0x0e, 0x00) => self.op_00e0(),
 
             _ => panic!("unexpected opcode {:#4X}", opcode)
         };
@@ -235,6 +236,19 @@ impl Processor {
         ProgramCounter::Next
     }
 
+    /*
+     * CLS
+     * Clear the vram
+     */
+    fn op_00e0(&mut self) -> ProgramCounter {
+        for y in 0..CHIP8_HEIGHT {
+            for x in 00..CHIP8_HEIGHT {
+                self.vram[y][x] = 0;
+            }
+        }
+
+        ProgramCounter::Next
+    }
 
 }
 
@@ -352,5 +366,14 @@ mod test {
 
         assert!(matches!(pc, ProgramCounter::Jump(0x202)));
         assert_eq!(p.reg_sp, 0);
+    }
+
+    #[test]
+    fn op_00e0() {
+        let mut p = Processor::new();
+
+        p.vram[1][1] = 1;
+        p.op_00e0();
+        assert_eq!(p.vram[1][1] ,0);
     }
 }
