@@ -10,6 +10,7 @@ pub const CHIP8_HEIGHT: usize = 32;
 
 enum ProgramCounter {
     Next,
+    Skip,
     Jump(usize)
 }
 
@@ -29,6 +30,7 @@ pub struct Processor {
     reg_sp: usize,
     reg_dt: u8,
     timer_cycle: Duration,
+    keypad: [bool; 16]
 }
 
 impl Processor {
@@ -41,7 +43,7 @@ impl Processor {
         }
 
         Processor {
-            ram: ram,
+            ram,
             vram: [[0; CHIP8_WIDTH]; CHIP8_HEIGHT],
             vram_changed: false,
             reg_v: [0; CHIP8_REG_V],
@@ -51,6 +53,7 @@ impl Processor {
             stack: [0; CHIP8_STACK],
             reg_dt: 0,
             timer_cycle: Duration::ZERO,
+            keypad: [false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false]
         }
     }
 
@@ -70,18 +73,19 @@ impl Processor {
         }
     }
 
-    pub fn tick(&mut self, delta: Duration) -> OutputState {
+    pub fn tick(&mut self, delta: Duration, keypad:[bool; 16]) -> OutputState {
         
+        self.keypad = keypad;
+        self.vram_changed = false;
         self.update_delay_timer(delta);
 
-        self.vram_changed = false;
-
-        let opcode = self.read_opcode();
-        let pc = self.run_opcode(opcode);
+        let opcode: u16 = self.read_opcode();
+        let pc: ProgramCounter = self.run_opcode(opcode);
 
         match pc {
             ProgramCounter::Next => self.reg_pc += CHIP8_OPCODE_SIZE,
-            ProgramCounter::Jump(addr) => self.reg_pc = addr
+            ProgramCounter::Skip => self.reg_pc += CHIP8_OPCODE_SIZE * 2,
+            ProgramCounter::Jump(addr) => self.reg_pc = addr,
         }
        
         OutputState {
@@ -140,6 +144,7 @@ impl Processor {
             (0x07, _, _, _) => self.op_7xkk(vx, kk),
             (0x0a, _, _, _) => self.op_annn(addr),
             (0x0d, _, _, _) => self.op_dxyn(vx, vy, n),
+            (0x0e, _, 0x0a, 0x01) => self.op_exa1(vx),
             (0x0c, _, _, _) => self.op_cxkk(vx, kk),
             (0x0f, _, 0x01, 0x05) => self.op_fn15(vx),
             (0x0f, _, 0x02, 0x09) => self.op_fx29(vx),
@@ -306,7 +311,7 @@ impl Processor {
      */
     fn op_3xkk(&mut self, vx:usize, kk:u8) -> ProgramCounter {
         if self.reg_v[vx] == kk {
-            ProgramCounter::Jump(self.reg_pc + CHIP8_OPCODE_SIZE * 2)
+            ProgramCounter::Skip
         } else {
             ProgramCounter::Next
         }
@@ -321,7 +326,17 @@ impl Processor {
         ProgramCounter::Next
     }
 
-
+    /*
+     * SKNP Vx
+     * Skip next instruction if key with the value of Vx is not pressed.
+     */
+    fn op_exa1(&mut self, vx:usize) -> ProgramCounter {
+        if self.keypad[self.reg_v[vx] as usize] == false {
+            ProgramCounter::Skip
+        } else {
+            ProgramCounter::Next
+        }
+    }
 }
 
 #[cfg(test)]
@@ -497,7 +512,25 @@ mod test {
         let pc3 = p.op_3xkk(0x1, 20);
 
         assert!(matches!(pc1, ProgramCounter::Next));
-        assert!(matches!(pc2, ProgramCounter::Jump(0x204)));
+        assert!(matches!(pc2, ProgramCounter::Skip));
         assert!(matches!(pc3, ProgramCounter::Next));
+    }
+
+    #[test]
+    fn op_exa1() {
+        let mut p = Processor::new();
+        p.load(&[0x00, 0xe0]);
+
+        let keymap = [ true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false];
+        p.tick(Duration::ZERO, keymap);
+        p.reg_v[0x0] = 0;
+        p.reg_v[0x1] = 1;
+
+        let pc1 = p.op_exa1(0x0);
+        let pc2 = p.op_exa1(0x1);
+
+        assert!(matches!(pc1, ProgramCounter::Next));
+        assert!(matches!(pc2, ProgramCounter::Skip));
+
     }
 }
