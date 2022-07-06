@@ -140,10 +140,12 @@ impl Processor {
             (0x01, _, _, _) => self.op_1nnn(addr),
             (0x02, _, _, _) => self.op_2nnn(addr),
             (0x03, _, _, _) => self.op_3xkk(vx, kk),
+            (0x04, _, _, _) => self.op_4xkk(vx, kk),
             (0x06, _, _, _) => self.op_6xkk(vx, kk),
             (0x07, _, _, _) => self.op_7xkk(vx, kk),
             (0x08, _, _, 0x02) => self.op_8xy2(vx, vy),
             (0x08, _, _, 0x0e) => self.op_8xye(vx, vy),
+            (0x08, _, _, 0x04) => self.op_8xy4(vx, vy),
             (0x08, _, _, 0x06) => self.op_8xy6(vx, vy),
             (0x0a, _, _, _) => self.op_annn(addr),
             (0x0d, _, _, _) => self.op_dxyn(vx, vy, n),
@@ -310,10 +312,22 @@ impl Processor {
 
     /*
      * SE Vx, byte
-     * Skip next instruction if Vx = kk.
+     * Skip next instruction if Vx == kk.
      */
     fn op_3xkk(&mut self, vx:usize, kk:u8) -> ProgramCounter {
         if self.reg_v[vx] == kk {
+            ProgramCounter::Skip
+        } else {
+            ProgramCounter::Next
+        }
+    }
+
+    /*
+     * SNE Vx, byte
+     * Skip next instruction if Vx != kk.
+     */
+    fn op_4xkk(&mut self, vx:usize, kk:u8) -> ProgramCounter {
+        if self.reg_v[vx] != kk {
             ProgramCounter::Skip
         } else {
             ProgramCounter::Next
@@ -378,6 +392,22 @@ impl Processor {
      */
     fn op_8xy2(&mut self, vx:usize, vy:usize) -> ProgramCounter {
         self.reg_v[vx] &= self.reg_v[vy]; 
+        ProgramCounter::Next
+    }
+
+    /*
+     * ADD Vx, Vy
+     * Set Vx = Vx + Vy.
+     */
+    fn op_8xy4(&mut self, vx:usize, vy:usize) -> ProgramCounter {
+        
+        let x = self.reg_v[vx] as u16;
+        let y = self.reg_v[vy] as u16;
+        let r = x + y;
+
+        self.reg_v[0xf] = if r > 0xff { 1 } else { 0 };
+        self.reg_v[vx] = (r & 0xff) as u8; 
+
         ProgramCounter::Next
     }
 
@@ -559,6 +589,20 @@ mod test {
         assert!(matches!(pc1, ProgramCounter::Next));
         assert!(matches!(pc2, ProgramCounter::Skip));
         assert!(matches!(pc3, ProgramCounter::Next));
+    }    
+    
+    #[test]
+    fn op_4xkk() {
+        let mut p = Processor::new();
+        p.reg_v[0x1] = 15;
+
+        let pc1 = p.op_4xkk(0x1, 10);
+        let pc2 = p.op_4xkk(0x1, 15);
+        let pc3 = p.op_4xkk(0x1, 20);
+
+        assert!(matches!(pc1, ProgramCounter::Skip));
+        assert!(matches!(pc2, ProgramCounter::Next));
+        assert!(matches!(pc3, ProgramCounter::Skip));
     }
 
     #[test]
@@ -636,8 +680,27 @@ mod test {
 
         p.reg_v[0x0] = 0b1010_1010;
         p.reg_v[0x1] = 0b1010_1010;
-
         p.op_8xy2(0x0, 0x1);
+
         assert_eq!(p.reg_v[0x1], 0b1010_1010);
+    }
+    
+    #[test]
+    fn op_8xy4(){
+        let mut p = Processor::new();
+
+        p.reg_v[0x0] = 10;
+        p.reg_v[0x1] = 20;
+        p.op_8xy4(0x0, 0x1);
+        
+        assert_eq!(p.reg_v[0xf], 0);
+        assert_eq!(p.reg_v[0x0], 30);
+
+        p.reg_v[0x0] = 0xff;
+        p.reg_v[0x1] = 1;
+        p.op_8xy4(0x0, 0x1);
+        
+        assert_eq!(p.reg_v[0x0], 0);
+        assert_eq!(p.reg_v[0xf], 1);
     }
 }
