@@ -122,6 +122,7 @@ impl Processor {
             (0x07, _, _, _) => self.op_7xkk(vx, kk),
             (0x00, 0x00, 0x0e, 0x0e) => self.op_00ee(),
             (0x00, 0x00, 0x0e, 0x00) => self.op_00e0(),
+            (0x01, _, _, _) => self.op_1nnn(addr),
 
             _ => panic!("unexpected opcode {:#4X}", opcode)
         };
@@ -133,7 +134,6 @@ impl Processor {
      * Set Vx = kk
      */
     fn op_6xkk(&mut self, vx:usize, kk:u8) -> ProgramCounter {
-        println!("LD V{:x}, {}", vx, kk);
         self.reg_v[vx] = kk;
         ProgramCounter::Next
     }
@@ -142,7 +142,6 @@ impl Processor {
      * Set I = addr
      */
     fn op_annn(&mut self, addr:usize) -> ProgramCounter {
-        println!("LD I, {}", addr);
         self.reg_i = addr;
         ProgramCounter::Next
     }
@@ -177,13 +176,15 @@ impl Processor {
         self.reg_v[0xf] = 0;
 
         for byte in 0..n {
-            let y : usize = ((self.reg_v[vy] + byte) % CHIP8_HEIGHT as u8).into();
+            let y : usize = ((self.reg_v[vy] + byte)).into();
             for bit in 0..8 {
-                let x : usize = ((self.reg_v[vx] + bit) % CHIP8_WIDTH as u8).into();
+                let x : usize = ((self.reg_v[vx] + bit)).into();
 
-                let color = (self.ram[self.reg_i + byte as usize] >> (7 - bit)) & 1;
-                self.reg_v[0xf] |= color & self.vram[y][x];
-                self.vram[y][x] ^= color;
+                if x < CHIP8_WIDTH && y < CHIP8_HEIGHT {
+                    let color = (self.ram[self.reg_i + byte as usize] >> (7 - bit)) & 1;
+                    self.reg_v[0xf] |= color & self.vram[y][x];
+                    self.vram[y][x] ^= color;
+                }
             }
         }
 
@@ -248,6 +249,10 @@ impl Processor {
         }
 
         ProgramCounter::Next
+    }
+
+    fn op_1nnn(&mut self, addr:usize) -> ProgramCounter {
+        ProgramCounter::Jump(addr)
     }
 
 }
@@ -375,5 +380,12 @@ mod test {
         p.vram[1][1] = 1;
         p.op_00e0();
         assert_eq!(p.vram[1][1] ,0);
+    }
+
+    #[test]
+    fn op_1nnn(){
+        let mut p = Processor::new();
+        let pc = p.op_1nnn(0x123);
+        assert!(matches!(pc, ProgramCounter::Jump(0x123)));
     }
 }
