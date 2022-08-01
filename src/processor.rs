@@ -59,7 +59,7 @@ impl Processor {
         }
     }
 
-    pub fn reset_pc(&mut self) {
+    pub fn _reset_pc(&mut self) {
         self.reg_pc = 0x200;
         self.reg_sp = 0;
     }
@@ -160,6 +160,7 @@ impl Processor {
             (0x0a, _, _, _) => self.op_annn(addr),
             (0x0d, _, _, _) => self.op_dxyn(vx, vy, n),
             (0x0e, _, 0x0a, 0x01) => self.op_exa1(vx),
+            (0x0e, _, 0x09, 0x0e) => self.op_ex9e(vx),
             (0x0c, _, _, _) => self.op_cxkk(vx, kk),
             (0x0f, _, 0x01, 0x05) => self.op_fx15(vx),
             (0x0f, _, 0x01, 0x08) => self.op_fx18(vx),

@@ -23,28 +23,12 @@ fn main() -> ! {
 
     let sleep_duration = Duration::from_millis(2);
 
-//    let mut event_pump = sdl_context.event_pump().unwrap();
-
     let mut start = Instant::now();
 
     'running: loop {
 
-        // for event in event_pump.poll_iter() {
-        //     match event {
-        //         Event::Quit { .. }
-        //         | Event::KeyDown {
-        //             keycode: Some(Keycode::Escape),
-        //             ..
-        //         } => break 'running,
-        //         _ => {}
-        //     }
-        // }
-
         let delta = start.elapsed();
-//        println!("{:?}", delta);
 
-           // processor.reset_pc();
-//            for _ in 0..24 {
         let keymap = input.update().unwrap();
         let state = processor.tick(delta, keymap);
 
@@ -53,7 +37,6 @@ fn main() -> ! {
         }
 
         start = Instant::now();
-//            }
         thread::sleep(sleep_duration);
     }
     
