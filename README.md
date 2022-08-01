@@ -1,5 +1,5 @@
 
-# Learning project to grasp Rust by implementing a CHIP-8 emu
+# Learning Rust by implementing a CHIP-8 emu
 
 many thanks to these excelent resources
 
